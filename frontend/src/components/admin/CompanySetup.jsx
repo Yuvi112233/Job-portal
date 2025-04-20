@@ -1,19 +1,20 @@
-import React, { useEffect, useState } from 'react'
-import Navbar from '../shared/Navbar'
-import { Button } from '../ui/button'
-import { ArrowLeft, Loader2 } from 'lucide-react'
-import { Label } from '../ui/label'
-import { Input } from '../ui/input'
-import axios from 'axios'
-import { COMPANY_API_END_POINT } from '@/utils/constant'
-import { useNavigate, useParams } from 'react-router-dom'
-import { toast } from 'sonner'
-import { useSelector } from 'react-redux'
-import useGetCompanyById from '@/hooks/useGetCompanyById'
+import React, { useEffect, useState } from 'react';
+import Navbar from '../shared/Navbar';
+import { Button } from '../ui/button';
+import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Label } from '../ui/label';
+import { Input } from '../ui/input';
+import axios from 'axios';
+import { COMPANY_API_END_POINT } from '@/utils/constant';
+import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useDispatch, useSelector } from 'react-redux';
+import { setCompanyDetails } from '@/redux/companySlice';
 
 const CompanySetup = () => {
     const params = useParams();
-    useGetCompanyById(params.id);
+    const dispatch = useDispatch();
+    const { singleCompany } = useSelector(store => store.company);
     const [input, setInput] = useState({
         name: "",
         description: "",
@@ -21,7 +22,6 @@ const CompanySetup = () => {
         location: "",
         file: null
     });
-    const {singleCompany} = useSelector(store=>store.company);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -46,33 +46,56 @@ const CompanySetup = () => {
         }
         try {
             setLoading(true);
+            const token = localStorage.getItem("token"); // Get token from localStorage
             const res = await axios.put(`${COMPANY_API_END_POINT}/update/${params.id}`, formData, {
                 headers: {
+                    Authorization: `Bearer ${token}`, // Attach token in header
                     'Content-Type': 'multipart/form-data'
                 },
                 withCredentials: true
             });
+
             if (res.data.success) {
                 toast.success(res.data.message);
                 navigate("/admin/companies");
             }
         } catch (error) {
             console.log(error);
-            toast.error(error.response.data.message);
+            toast.error(error.response?.data?.message || "Something went wrong");
         } finally {
             setLoading(false);
         }
     }
 
     useEffect(() => {
-        setInput({
-            name: singleCompany.name || "",
-            description: singleCompany.description || "",
-            website: singleCompany.website || "",
-            location: singleCompany.location || "",
-            file: singleCompany.file || null
-        })
-    },[singleCompany]);
+        const fetchCompanyData = async () => {
+            try {
+                const token = localStorage.getItem("token"); // Get token from localStorage
+                const res = await axios.get(`${COMPANY_API_END_POINT}/${params.id}`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`, // Attach token in header
+                        'Content-Type': 'application/json'
+                    },
+                    withCredentials: true
+                });
+
+                if (res.data.success) {
+                    dispatch(setCompanyDetails(res.data.company));
+                    setInput({
+                        name: res.data.company.name || "",
+                        description: res.data.company.description || "",
+                        website: res.data.company.website || "",
+                        location: res.data.company.location || "",
+                        file: res.data.company.file || null
+                    });
+                }
+            } catch (error) {
+                console.log(error);
+            }
+        };
+
+        fetchCompanyData();
+    }, [params.id, dispatch]);
 
     return (
         <div>
@@ -137,9 +160,8 @@ const CompanySetup = () => {
                     }
                 </form>
             </div>
-
         </div>
-    )
-}
+    );
+};
 
-export default CompanySetup
+export default CompanySetup;
